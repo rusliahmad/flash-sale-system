@@ -13,9 +13,9 @@ export interface SaleStatus {
   status: SaleWindowStatus;
 }
 
-function windowStatus(startsAt: string, endsAt: string, now: Date): SaleWindowStatus {
+export function windowStatus(startsAt: string, endsAt: string, now: Date): SaleWindowStatus {
   if (now < new Date(startsAt)) return "upcoming";
-  if (now > new Date(endsAt)) return "ended";
+  if (now >= new Date(endsAt)) return "ended";
   return "active";
 }
 

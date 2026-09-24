@@ -1,0 +1,13 @@
+### Health check
+GET http://localhost:4000/health
+
+### Sale status
+GET http://localhost:4000/api/sale
+
+### Purchase (stub for now — returns 501 until Saturday's atomic logic lands)
+POST http://localhost:4000/api/purchase
+Content-Type: application/json
+
+{
+  "userId": "user-1"
+}
