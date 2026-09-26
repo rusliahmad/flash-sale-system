@@ -50,12 +50,13 @@ describe("input validation", () => {
     expect(await stockNow()).toBe(env.sale.stock);
   });
 
-  it("rejects malformed JSON with 400", async () => {
+  it("rejects malformed JSON with a JSON 400", async () => {
     const res = await request(insideWindow())
       .post("/api/purchase")
       .set("Content-Type", "application/json")
       .send("{not json");
     expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: "INVALID_JSON" });
   });
 });
 

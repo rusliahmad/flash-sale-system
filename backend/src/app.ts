@@ -1,6 +1,7 @@
 import cors from "cors";
 import express, { type Express } from "express";
 import type { Redis } from "ioredis";
+import { errorHandler } from "./errors.js";
 import { saleRouter } from "./routes/sale.routes.js";
 import { purchase, type PurchaseFn } from "./services/purchase.service.js";
 
@@ -27,6 +28,8 @@ export function createApp(redis: Redis, deps: AppDeps = {}): Express {
       purchase: deps.purchase ?? purchase,
     }),
   );
+
+  app.use(errorHandler);
 
   return app;
 }

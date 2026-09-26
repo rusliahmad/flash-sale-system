@@ -2,5 +2,7 @@ import { Redis } from "ioredis";
 import { env } from "./env.js";
 
 export function createRedisClient(): Redis {
-  return new Redis(env.redisUrl);
+  const client = new Redis(env.redisUrl, { maxRetriesPerRequest: 2, commandTimeout: 2000 });
+  client.on("error", (err) => console.error("redis error:", err.message));
+  return client;
 }

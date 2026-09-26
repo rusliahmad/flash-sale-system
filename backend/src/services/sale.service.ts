@@ -1,5 +1,6 @@
 import type { Redis } from "ioredis";
 import { env } from "../config/env.js";
+import { guardStore } from "../errors.js";
 import { saleKeys } from "./sale.keys.js";
 
 export type SaleWindowStatus = "upcoming" | "active" | "ended";
@@ -26,7 +27,7 @@ export async function seedStock(redis: Redis): Promise<void> {
 
 export async function getSaleStatus(redis: Redis, now = new Date()): Promise<SaleStatus> {
   const { stock } = saleKeys(env.sale.id);
-  const remaining = Number((await redis.get(stock)) ?? 0);
+  const remaining = Number((await guardStore(() => redis.get(stock))) ?? 0);
   return {
     saleId: env.sale.id,
     name: env.sale.name,
