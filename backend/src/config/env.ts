@@ -16,6 +16,6 @@ export const env = {
     name: required("SALE_NAME", "Flash Sale"),
     stock: Number(process.env.SALE_STOCK ?? 100),
     startsAt: required("SALE_STARTS_AT", new Date(Date.now() - 60_000).toISOString()),
-    endsAt: required("SALE_ENDS_AT", new Date(Date.now() + 60 * 60_000).toISOString()),
+    endsAt: required("SALE_ENDS_AT", new Date(Date.now() + 24 * 60 * 60_000).toISOString()),
   },
 };

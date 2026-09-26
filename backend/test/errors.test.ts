@@ -34,6 +34,15 @@ describe("when Redis fails", () => {
     expect(res.body).toEqual({ error: "SERVICE_UNAVAILABLE" });
   });
 
+  it("a Redis command error (for example a script bug) is a 500, not a 503", async () => {
+    const replyError = Object.assign(new Error("ERR script failed"), { name: "ReplyError" });
+    const scriptBugRedis = { eval: () => Promise.reject(replyError) } as unknown as Redis;
+    const app = createApp(scriptBugRedis, { clock: insideWindow });
+    const res = await request(app).post("/api/purchase").send({ userId: "u1" });
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: "INTERNAL_ERROR" });
+  });
+
   it("requests rejected before reaching Redis are unaffected", async () => {
     const app = createApp(brokenRedis, { clock: insideWindow });
     const res = await request(app).post("/api/purchase").send({});

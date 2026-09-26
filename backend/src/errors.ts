@@ -6,6 +6,7 @@ export async function guardStore<T>(operation: () => Promise<T>): Promise<T> {
   try {
     return await operation();
   } catch (err) {
+    if ((err as Error)?.name === "ReplyError") throw err;
     throw new StoreUnavailableError("Redis operation failed", { cause: err });
   }
 }
