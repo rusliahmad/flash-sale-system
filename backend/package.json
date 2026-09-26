@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "stress": "tsx scripts/stress.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

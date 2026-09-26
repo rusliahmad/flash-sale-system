@@ -77,4 +77,46 @@ _Outline only; to be written in my own words once the implementation is done._
 
 ## Testing
 
-_To be filled in: unit tests, integration tests against real Redis, and the stress test scenarios with their results._
+### Automated tests
+
+Requires Redis running (`docker compose up -d`). Tests use Redis database 15, so local dev data in database 0 is not touched.
+
+```bash
+cd backend
+npm test
+```
+
+- **Integration tests:** validation, sale window boundaries (`startsAt` inclusive, `endsAt` exclusive), purchase logic, duplicates, sold out, missing stock key.
+- **Concurrency tests:** the three stress scenarios below, run through HTTP, plus a 10-round repeat of the contested-stock case.
+- **Negative controls:** a naive check-then-act implementation, given the same load through the same HTTP path, oversells and lets one user buy many times. This shows the tests can fail, so the passing Lua version is meaningful.
+
+### Stress test
+
+A separate process sends load to a running backend. Start Redis and the backend first.
+
+```bash
+docker compose up -d
+cd backend
+npm run dev        # terminal 1
+npm run stress     # terminal 2
+```
+
+`npm run stress` resets Redis database 0 before each scenario, so it wipes local dev data.
+
+| # | Scenario | Expected result |
+|---|---|---|
+| 1 | 1000 distinct users, stock 100 | exactly 100 x `201`, 900 x `409`, stock 0 |
+| 2 | 1 user x 200 requests, stock 100 | exactly 1 x `201`, 199 x `409`, stock 99 |
+| 3 | 500 users x 3 requests, stock 50 | exactly 50 x `201`, stock 0 |
+
+Invariants checked after every scenario: created = stock drop = size of the buyers set, stock never negative, only `201` and `409` returned. The script exits with code 1 if any invariant fails.
+
+Sample run on a local Windows machine (Docker Redis, generator on the same machine, 100 connections):
+
+| Scenario | Throughput | p50 | p95 |
+|---|---|---|---|
+| 1 | about 2,850 req/s | 208 ms | 320 ms |
+| 2 | about 3,290 req/s | 39 ms | 57 ms |
+| 3 | about 3,960 req/s | 214 ms | 342 ms |
+
+Read these numbers with care. The generator shares the machine with the server, so throughput is indicative only. Latency includes time spent waiting for one of the 100 client sockets during the burst, so it reflects queueing under load, not per-request service time. The claim this test supports is correctness (all invariants held), not a performance guarantee.
