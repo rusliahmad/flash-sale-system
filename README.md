@@ -2,8 +2,6 @@
 
 Backend + frontend for a flash sale: limited stock, one purchase per user, configurable sale window, race-condition-safe under concurrent load.
 
-Status: scaffolding in progress. Design write-up, architecture diagram, run instructions, and stress test results land here once the core purchase flow is implemented.
-
 ## Layout
 
 - `backend/` — Node.js + TypeScript + Express API, backed by Redis
@@ -31,6 +29,10 @@ Checks run in this order: validate `userId`, check the sale window, then an atom
 | User already purchased | `409` | `{ "error": "ALREADY_PURCHASED" }` |
 | Sold out | `409` | `{ "error": "SOLD_OUT" }` |
 | Stock key missing (sale not seeded) | `503` | `{ "error": "SALE_NOT_INITIALIZED" }` |
+| Malformed JSON body | `400` | `{ "error": "INVALID_JSON" }` |
+| Body larger than 100 KB | `413` | `{ "error": "PAYLOAD_TOO_LARGE" }` |
+| Redis unreachable, failing, or slower than 2 s | `503` | `{ "error": "SERVICE_UNAVAILABLE" }` |
+| Unexpected bug in the API | `500` | `{ "error": "INTERNAL_ERROR" }` |
 
 If a user has already purchased and stock is also exhausted, `ALREADY_PURCHASED` wins.
 
@@ -66,14 +68,12 @@ sequenceDiagram
 
 ## Design & Trade-offs
 
-_Outline only; to be written in my own words once the implementation is done._
-
-- **Concurrency control:** why a single atomic Lua script (check-then-act as one step)
-- **Alternatives considered:** `WATCH`/`MULTI`, distributed lock, database row lock, and why each was not chosen
-- **Where state lives:** Redis only; no separate database
-- **Durability:** what is lost if Redis dies without persistence, and how it could be mitigated (AOF, queue to a database)
-- **Scaling:** single Redis instance vs cluster (key hash slots), queue-based fulfilment as a later step
-- **Known limitations:** stated honestly
+- **Concurrency control:** The main risk is the check-then-act race: two requests can read `stock = 1` before either decrements it. This is solved by a Lua script that checks the buyer and the stock, then decrements the stock and records the buyer as one atomic step. Redis runs the script one at a time, so every timing is equal to some sequential order, and no oversell or double purchase is possible. The cost is that correctness depends on a single Redis instance.
+- **Alternatives considered:** `WATCH`/`MULTI` retries under contention, and requires the client to arrange the transaction via multiple network round trips and handle potential failures, whereas the Lua script runs entirely on the Redis server in a single, block-free pass. There is also a distributed lock, but this adds network latency, which contradicts the very requirement this flash sale is built for: to be fast but reliable. Another option is a database row lock, but if a lock is held open too long, this degrades throughput and could eventually trigger a deadlock.
+- **Where state lives:** Redis only, since this gives us speed and simplicity. There is no durable record of purchases.
+- **Durability:** Redis keeps everything in memory, so a restart with no persistence wipes stock and buyers, and `seedStock` can then silently oversell. This project does not configure persistence anywhere. If AOF were enabled, `appendfsync everysec` would be the sensible choice: it processes writes fast enough, with a loss window of only about one second. `appendfsync always` is the safest option, but at the cost of being the slowest of the three. The last one, `appendfsync no`, is the fastest, but Redis then depends on the operating system's own flush schedule by default, which has a potential loss of around 30 seconds.
+- **Scaling:** The test reached about 3,000 req/s, but it ran on the same machine as the server, so this is purely indicative. The API is stateless, so it can run as multiple instances. Under heavier load, the Node process would most likely be the first to break, then Redis itself, since it only runs a few commands. The real limit is that every request hits the same two keys, so Redis Cluster would not spread this load. The fix would be to shard the stock across several keys.
+- **Known limitations:** The project only uses a single Redis instance, so the design will not survive a Redis failure or restart. The user ID is not authenticated at all, so any client can supply someone else's ID and purchase as them. The countdown uses the client's clock instead of the server's, for simplicity, even though the server always makes the real decision. The load test ran on the same machine as the server, so the throughput number is still noisy. There is also no rate limiting, so a single client could exhaust the sale by itself. A purchase that times out has an unknown outcome to the client, but retrying is safe, since a second attempt returns `ALREADY_PURCHASED` and never takes the stock twice.
 
 ## Testing
 
