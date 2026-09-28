@@ -8,6 +8,29 @@ Backend + frontend for a flash sale: limited stock, one purchase per user, confi
 - `frontend/` — React + TypeScript (Vite)
 - `docker-compose.yml` — local Redis
 
+## Getting started
+
+Prerequisites: Node.js 22 (developed on 22.19) and Docker.
+
+```bash
+# 1. Start Redis
+docker compose up -d
+
+# 2. Backend (terminal 1) - http://localhost:4000
+cd backend
+npm install
+npm run dev
+
+# 3. Frontend (terminal 2) - open the URL Vite prints, usually http://localhost:5173
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend proxies `/api` to the backend on port 4000. No configuration is required. Without a `.env` file the backend sells 100 items in a window that starts one minute before the backend starts and lasts 24 hours. To change this, copy `backend/.env.example` to `backend/.env` and edit it (the example window runs from 2026 to 2030, and it must include the current time for purchases to succeed).
+
+To reset the sale to a clean state: `docker compose down && docker compose up -d`, then restart the backend so it seeds the stock again.
+
 ## API
 
 ### `GET /api/sale`
@@ -101,7 +124,7 @@ npm run dev        # terminal 1
 npm run stress     # terminal 2
 ```
 
-`npm run stress` resets Redis database 0 before each scenario, so it wipes local dev data.
+`npm run stress` resets Redis database 0 before each scenario, so it wipes local dev data. It also intentionally leaves the sale sold out afterward, since the last scenario's correct result is `stock = 0`. Reset before demoing the UI with `docker compose down && docker compose up -d` (no volume is used, so this fully clears Redis), then restart the backend so it re-seeds stock.
 
 | # | Scenario | Expected result |
 |---|---|---|
